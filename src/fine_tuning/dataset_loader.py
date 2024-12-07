@@ -15,7 +15,7 @@ class DatasetLoader:
         self.format_dataset(device=device)
         self.get_label_mapping()
 
-    def format_dataset(self, device: str):
+    def format_dataset(self, device: str) -> None:
         """Formats dataset to pytorch and encode target"""
         self.train = self.train.class_encode_column("labels")
         self.test = self.test.class_encode_column("labels")
@@ -23,7 +23,7 @@ class DatasetLoader:
         self.train.set_format(type="torch", columns=["text", "labels"], device=device)
         self.test.set_format(type="torch", columns=["text", "labels"], device=device)
 
-    def get_label_mapping(self):
+    def get_label_mapping(self) -> None:
         """Creates mapping of target labels and language names"""
 
         self.num_labels = len(self.train.features["labels"].names)

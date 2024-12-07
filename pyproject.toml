@@ -2,7 +2,7 @@
 name = "tesis"
 version = "0.1.0"
 description = ""
-authors = Federico Méndez Casanave
+authors = ["Federico Méndez Casanave"]
 readme = "README.md"
 
 [tool.poetry.dependencies]

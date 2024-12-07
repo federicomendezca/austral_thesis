@@ -1,11 +1,15 @@
 import os
+from typing import Tuple, Union
 
 import torch
+from datasets import Dataset
 from torch import nn
 from torch.cuda.amp import autocast
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 from transformers import AutoModel
+
+from utils.utils import set_seed
 
 
 class ClassificationHead(nn.Module):
@@ -15,7 +19,7 @@ class ClassificationHead(nn.Module):
         self.out_proj = nn.Linear(hidden_size, num_labels)
         self.dropout = nn.Dropout()
 
-    def forward(self, features):
+    def forward(self, features: torch.Tensor) -> torch.Tensor:
         x = self.dropout(features)
         x = self.out_proj(x)
         return x
@@ -33,7 +37,12 @@ class PreTrainedAndClassificationHead(nn.Module):
             hidden_size=model_output_size, num_labels=num_labels
         )
 
-    def forward(self, input_ids, attention_mask, output_hidden_states=True):
+    def forward(
+        self,
+        input_ids: torch.Tensor,
+        attention_mask: torch.Tensor,
+        output_hidden_states=True,
+    ) -> Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
         output_pretrained_model = self.pretrained_model(
             input_ids,
             attention_mask=attention_mask,
@@ -49,8 +58,8 @@ class PreTrainedAndClassificationHead(nn.Module):
 
 
 def train_model(
-    model,
-    train,
+    model: PreTrainedAndClassificationHead,
+    train: Dataset,
     lr: float,
     num_epochs: int,
     train_batch_size: int,
@@ -58,21 +67,21 @@ def train_model(
     device: str,
     train_full_model: bool = False,
     random_state: int = 42,
-):
-    torch.manual_seed(random_state)
+) -> None:
+    set_seed(random_state)
     train_dataloader = DataLoader(train, batch_size=train_batch_size, shuffle=True)
 
     model.to(device)
 
     if train_full_model:
-        # Unfreeze weights pretrained model's weights
+        # Unfreeze pretrained model's weights
         for param in model.pretrained_model.parameters():
             param.requires_grad = True
         optimizer = torch.optim.AdamW(model.parameters(), lr=lr)
         model.train()
 
     else:
-        #  Freeze weights pretrained model's weights
+        #  Freeze pretrained model's weights
         for param in model.pretrained_model.parameters():
             param.requires_grad = False
         optimizer = torch.optim.AdamW(model.classifier.parameters(), lr=lr)

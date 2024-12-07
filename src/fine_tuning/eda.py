@@ -5,11 +5,17 @@ import numpy as np
 import pandas as pd
 import plotly.express as px
 import seaborn as sns
+from datasets import Dataset
 
 
 class EDA:
     def __init__(
-        self, train, test, id2label: dict, eda_dir: str, token_max_length: int = 128
+        self,
+        train: Dataset,
+        test: Dataset,
+        id2label: dict,
+        eda_dir: str,
+        token_max_length: int = 128,
     ):
         self.train = train
         self.test = test
@@ -19,7 +25,7 @@ class EDA:
 
         self.preprocess()
 
-    def preprocess(self):
+    def preprocess(self) -> None:
         """Transforms Hugging Face Dataset to Pandas, maps labels and creates a sequence length variable"""
         self.train = self.train.to_pandas()
         self.train["labels"] = self.train["labels"].map(self.id2label)
@@ -33,7 +39,7 @@ class EDA:
 
     def seq_length_hist(
         self, title: str = "Sequence length distribution per dataset", save: bool = True
-    ):
+    ) -> None:
         fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6))
 
         ax1.hist(
@@ -69,7 +75,7 @@ class EDA:
 
     def seq_length_cdfs(
         self, title: str = "Sequence length CDF per dataset", save: bool = True
-    ):
+    ) -> None:
         df_train_sorted = self.train.sort_values(by="sequence_length")
         df_test_sorted = self.test.sort_values(by="sequence_length")
 
@@ -159,7 +165,7 @@ class EDA:
 
     def boxplots(
         self, df: pd.DataFrame, title: str, plot: bool = False, save: bool = True
-    ):
+    ) -> None:
         #  Static color map for both targets to keep consistensy throughout plots
         color_map = {
             "nl": "#2E91E5",
@@ -217,7 +223,7 @@ class EDA:
             fig.write_image(f"{self.eda_dir}/{title}.jpeg")
             fig.write_html(f"{self.eda_dir}/{title}.html")
 
-    def run_plots(self, plot: bool = False, save_plots: bool = True):
+    def run_plots(self, plot: bool = False, save_plots: bool = True) -> None:
         self.seq_length_hist(save=save_plots)
         self.seq_length_cdfs(save=save_plots)
         self.boxplots(

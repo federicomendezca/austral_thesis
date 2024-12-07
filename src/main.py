@@ -3,7 +3,9 @@
 Arguments allow to select whether to run fine tuning, evaluation and plotting, and which model.
 """
 
+import argparse
 import os
+from typing import Literal
 
 import torch
 
@@ -17,6 +19,8 @@ from utils.utils import set_seed, setup_logger
 
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 
+
+#####  PREDEFINED PARAMETERS  #####
 #  Seed
 RANDOM_STATE = 42
 set_seed(RANDOM_STATE)
@@ -33,17 +37,19 @@ TEST_BATCH_SIZE = 8
 #  Select model
 RESULTS_DIR = os.path.join(project_root, "results")
 PRETRAINED_MODEL = "xlm-roberta-base"
-FINE_TUNED_MODEL = f"{PRETRAINED_MODEL}_fine_tuned"
-CLASSIFICATION_HEAD_DIR = f"{PRETRAINED_MODEL}_classification_head"
 TOKENIZER = PRETRAINED_MODEL
 
 #  HuggingFace Dataset
 DF_STR = "papluca/language-identification"
 
-MODELS_TO_RUN = "both"  #  "both" / "base" / "fine_tuned"
+MODELS_TO_RUN: Literal["both", "base", "fine_tuned"] = "both"
+#####  PREDEFINED PARAMETERS  #####
 
 # Setting up logger
 logger = setup_logger()
+
+FINE_TUNED_MODEL = f"{PRETRAINED_MODEL}_fine_tuned"
+CLASSIFICATION_HEAD_DIR = f"{PRETRAINED_MODEL}_classification_head"
 
 
 def main(
@@ -107,16 +113,8 @@ def main(
         logger.info(
             "---------------------\nTokenizing Train and Test for EDA (without truncation)..."
         )
-        train_eda = tokenize(
-            df=dataset_loader.train,
-            tokenizer_name=tokenizer_name,
-            random_state=random_state,
-        )
-        test_eda = tokenize(
-            dataset_loader.test,
-            tokenizer_name=tokenizer_name,
-            random_state=random_state,
-        )
+        train_eda = tokenize(df=dataset_loader.train, tokenizer_name=tokenizer_name)
+        test_eda = tokenize(dataset_loader.test, tokenizer_name=tokenizer_name)
 
         eda_dir = f"{RESULTS_DIR}/EDA"
 
@@ -135,7 +133,6 @@ def main(
         df=dataset_loader.test,
         tokenizer_name=tokenizer_name,
         token_max_length=token_max_length,
-        random_state=random_state,
     )
 
     if train:
@@ -144,19 +141,16 @@ def main(
             df=dataset_loader.train,
             tokenizer_name=tokenizer_name,
             token_max_length=token_max_length,
-            random_state=random_state,
-        )
-
-        model = PreTrainedAndClassificationHead(
-            pretrained_model_name=pretrained_model_name,
-            num_labels=dataset_loader.num_labels,
         )
 
         if train_classification_head:
             logger.info(
                 "---------------------\nTraining default model's classification head..."
             )
-
+            model = PreTrainedAndClassificationHead(
+                pretrained_model_name=pretrained_model_name,
+                num_labels=dataset_loader.num_labels,
+            )
             train_model(
                 model=model,
                 train=train,
@@ -171,19 +165,23 @@ def main(
 
         if train_full_model:
             logger.info("---------------------\nRunning full fine tuning...")
+            model = PreTrainedAndClassificationHead(
+                pretrained_model_name=pretrained_model_name,
+                num_labels=dataset_loader.num_labels,
+            )
             train_model(
                 model=model,
                 train=train,
                 lr=lr,
                 num_epochs=epochs_full_model,
                 train_batch_size=train_batch_size,
-                save_dir=FINE_TUNED_MODEL,
+                save_dir=fine_tuned_model,
                 train_full_model=True,
                 device=DEVICE,
                 random_state=random_state,
             )
 
-        logger.info("\nFine tuning completed!")
+        logger.info("\nTraining completed!")
 
     #  Evaluating classification and extracting layers
     logger.info("---------------------\nModel testing")
@@ -195,6 +193,7 @@ def main(
             [pretrained_model_name] if models_to_run == "base" else [fine_tuned_model]
         )
     )
+
     model_versions = (
         ["Base", "Fine Tuned"]
         if models_to_run == "both"
@@ -202,7 +201,7 @@ def main(
     )
 
     for model_name, model_version in zip(model_names, model_versions):
-        logger.info("\nModel: {model_name}")
+        logger.info(f"\nModel: {model_name}")
 
         model_results_dir = f"{RESULTS_DIR}/{model_name}"
         layers_dir = f"{model_results_dir}/layers"
@@ -252,13 +251,56 @@ def main(
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        description="Runs selected components of the thesis analysis."
+    )
+    parser.add_argument(
+        "--models_to_run",
+        type=str,
+        default=MODELS_TO_RUN,
+        help="Determines which model to run. Possible values: ['both', 'base', 'fine_tuned'],  (default: 'both')",
+    )
+    parser.add_argument(
+        "--eda", action="store_true", help="Whether to run EDA (default: False)"
+    )
+    parser.add_argument(
+        "--train", action="store_true", help="Whether to train models (default: False)"
+    )
+    parser.add_argument(
+        "--train_classification_head",
+        action="store_true",
+        help="Whether to train the defualt model's classificaiton head (default: False)",
+    )
+    parser.add_argument(
+        "--train_full_model",
+        action="store_true",
+        help="Whether to do full fine tuning (default: False)",
+    )
+    parser.add_argument(
+        "--plot",
+        action="store_true",
+        help="Whether to output and save plots locally (default: False)",
+    )
+    parser.add_argument(
+        "--evaluate",
+        action="store_true",
+        help="Whether to run evaluation pipeline (default: False)",
+    )
+    parser.add_argument(
+        "--silhouette",
+        action="store_true",
+        help="Whether to run silhouette analysis (default: False)",
+    )
+
+    args = parser.parse_args()
+
     main(
-        models_to_run="fine_tuned",
-        eda=False,
-        train=True,
-        train_classification_head=False,
-        train_full_model=True,
-        plot=False,
-        evaluate=True,
-        silhouette=False,
+        models_to_run=args.models_to_run,
+        eda=args.eda,
+        train=args.train,
+        train_classification_head=args.train_classification_head,
+        train_full_model=args.train_full_model,
+        plot=args.plot,
+        evaluate=args.evaluate,
+        silhouette=args.silhouette,
     )
